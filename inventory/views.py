@@ -26,20 +26,20 @@ class StockView(APIView):
         params = request.data
         exist = Inventory.objects.filter(product=params.get("name")).exists()
         if exist:
-            return JsonResponse(status=status.HTTP_400_BAD_REQUEST)
+            return Response(status=status.HTTP_400_BAD_REQUEST)
         else:
             Inventory.objects.create(
                 product = params.get("name"),
                 quantity = params.get("amount") or 1
             )                
-            location = f"http://180.144.199.108:80/v1/stocks/{params.get('name')}"
-            response = JsonResponse(params)
+            location = f"http://35.78.106.61:80/v1/stocks/{params.get('name')}"
+            response = JsonResponse(params, status=status.HTTP_200_OK)
             response['Location'] = location
             return response
     
     def delete(self, request):
         Inventory.objects.all().delete()
-        return JsonResponse(status = status.HTTP_200_OK)
+        return Response(status = status.HTTP_200_OK)
 
 class SaleView(APIView):
     def get(self, request):
@@ -61,7 +61,7 @@ class SaleView(APIView):
         params = request.data
         item = Inventory.objects.filter(product=params.get("name")).first()
         if item == None or item.quantity < (params.get("amount") or 1):
-            return JsonResponse(status = status.HTTP_400_BAD_REQUEST)
+            return Response(status = status.HTTP_400_BAD_REQUEST)
         else:
             item.quantity -= (params.get("amount") or 1)
             exist = Inventory.objects.filter(product="sales").exists()
@@ -71,7 +71,7 @@ class SaleView(APIView):
             profit.quantity += int((params.get("amount") or 1) * (params.get("price") or 0) * 10000)
             item.save()
             profit.save()
-            location = f"http://180.144.199.108:80/v1/sales/{params.get('name')}"
+            location = f"http://35.78.106.61:80/v1/sales/{params.get('name')}"
             response = JsonResponse(params, status = status.HTTP_200_OK)
             response['Location'] = location
             return response
