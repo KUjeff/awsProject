@@ -9,7 +9,7 @@ class StockView(APIView):
         if name:
             item = Inventory.objects.filter(product=name).first()
             if not item:
-                return Response(status=status.HTTP_400_BAD_REQUEST)
+                return JsonResponse({"message": "ERROR"}, status=status.HTTP_400_BAD_REQUEST)
             response = {item.product: item.quantity}
             return JsonResponse(
                 response,
@@ -24,18 +24,23 @@ class StockView(APIView):
 
     def post(self, request):
         params = request.data
-        exist = Inventory.objects.filter(product=params.get("name")).exists()
-        if exist:
-            return Response(status=status.HTTP_400_BAD_REQUEST)
+        if (not params.get("name")) or (len(params.get("name")) > 8): # not a valid name
+            return JsonResponse({"message": "ERROR"}, status=status.HTTP_400_BAD_REQUEST)
+        if (params.get("amount") != None) and (not isinstance(params.get("amount"), int) or params.get("amount") < 0): # not a valid amount
+            return JsonResponse({"message": "ERROR"}, status=status.HTTP_400_BAD_REQUEST)
+        if Inventory.objects.filter(product=params.get("name")).exists():
+            item = Inventory.objects.get(product=params.get("name"))
+            item.quantity += params.get("amount") or 1
+            item.save()
         else:
             Inventory.objects.create(
                 product = params.get("name"),
                 quantity = params.get("amount") or 1
             )                
-            location = f"http://35.78.106.61:80/v1/stocks/{params.get('name')}"
-            response = JsonResponse(params, status=status.HTTP_200_OK)
-            response['Location'] = location
-            return response
+        location = f"http://35.78.106.61:80/v1/stocks/{params.get('name')}"
+        response = JsonResponse(params, status=status.HTTP_200_OK)
+        response['Location'] = location
+        return response
     
     def delete(self, request):
         Inventory.objects.all().delete()
@@ -59,9 +64,14 @@ class SaleView(APIView):
     
     def post(self, request):
         params = request.data
+        if (params.get("amount") != None) and (not isinstance(params.get("amount"), int) or params.get("amount") < 0): # not a valid amount
+            return JsonResponse({"message": "ERROR"}, status=status.HTTP_400_BAD_REQUEST)
+        if (params.get("price") != None): # not a valid price
+            if not (isinstance(params.get("price"), int) or isinstance(params.get("price"), float)) or params.get("price") < 0:
+                return JsonResponse({"message": "ERROR"}, status=status.HTTP_400_BAD_REQUEST)
         item = Inventory.objects.filter(product=params.get("name")).first()
         if item == None or item.quantity < (params.get("amount") or 1):
-            return Response(status = status.HTTP_400_BAD_REQUEST)
+            return JsonResponse({"message": "ERROR"}, status=status.HTTP_400_BAD_REQUEST)
         else:
             item.quantity -= (params.get("amount") or 1)
             exist = Inventory.objects.filter(product="sales").exists()

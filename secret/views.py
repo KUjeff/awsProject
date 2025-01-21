@@ -1,5 +1,6 @@
 import hashlib
 from django.http import HttpResponse
+from rest_framework import status
 
 USERNAME = "aws"
 PASSWORD = "candidate"
@@ -19,4 +20,4 @@ def digest_authenticate(request):
 
         if auth_data.get("response") == expected_response:
             return HttpResponse("SUCCESS")
-    return HttpResponse("FAIL")
+    return HttpResponse("FAIL", status=status.HTTP_401_UNAUTHORIZED)
