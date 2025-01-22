@@ -1,8 +1,8 @@
 from django.urls import path
-from .views import digest_authenticate
+from .views import authenticate
 
 app_name = 'secret'
 
 urlpatterns = [
-    path('', digest_authenticate),
+    path('', authenticate),
 ]
