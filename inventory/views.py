@@ -15,15 +15,15 @@ constraints
 
 class StockView(APIView):  
     def get(self, request, name=None):
-        if name:
+        if name: # name is given
             item = Inventory.objects.filter(product=name).first()
-            if not item: # item does not exist in table
+            if not item: # product does not exist in table
                 return Response({"message": "ERROR"}, status=status.HTTP_400_BAD_REQUEST)
             return Response(
                 {item.product: item.quantity},
                 status=status.HTTP_200_OK
             )
-        else:
+        else: # name not given, give all product info
             items = Inventory.objects.all()
             return Response(
                 {item.product: item.quantity for item in items if item.product != "sales"},
@@ -60,13 +60,13 @@ class StockView(APIView):
 class SaleView(APIView):
     def get(self, request):
         exist = Inventory.objects.filter(product="sales").exists()
-        if exist: # sales exists
+        if exist: # sales exists in table
             profit = ceil(Inventory.objects.get(product="sales").quantity*1.0/100)*1.0/100
             return Response(
                 {"sales": round(profit, 2)},
                 status=status.HTTP_200_OK
             )
-        else: # sales does not exist, set to 0.0
+        else: # sales does not exist, set its value to 0
             Inventory.objects.create(product="sales", quantity=0)
             return Response(
                 {"sales": 0.0},
