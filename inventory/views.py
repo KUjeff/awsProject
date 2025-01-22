@@ -50,7 +50,7 @@ class StockView(APIView):
                 quantity = amount or 1
             )                
         response = Response(params, status=status.HTTP_200_OK)
-        response['Location'] = f"http://35.78.106.61:80/v1/stocks/{name}"
+        response['Location'] = f"http://{request.headers.get('Host')}/v1/stocks/{name}"
         return response
     
     def delete(self, request):
@@ -99,5 +99,5 @@ class SaleView(APIView):
             item.save()
             profit.save()
             response = Response(params, status = status.HTTP_200_OK)
-            response['Location'] = f"http://35.78.106.61:80/v1/sales/{params.get('name')}"
+            response['Location'] = f"http://{request.headers.get('Host')}/v1/sales/{name}"
             return response
