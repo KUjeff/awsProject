@@ -2,44 +2,55 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from .models import Inventory
-from django.http import JsonResponse
+from math import ceil
+
+'''
+constraints
+(1) params: name(required), length <= 8,
+            amount, postive int
+(3) params: name(required), length <= 8,
+            amount, postive int
+            price, postive int/float
+'''
 
 class StockView(APIView):  
     def get(self, request, name=None):
         if name:
             item = Inventory.objects.filter(product=name).first()
-            if not item:
-                return JsonResponse({"message": "ERROR"}, status=status.HTTP_400_BAD_REQUEST)
-            response = {item.product: item.quantity}
-            return JsonResponse(
-                response,
+            if not item: # item does not exist in table
+                return Response({"message": "ERROR"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {item.product: item.quantity},
                 status=status.HTTP_200_OK
             )
-        items = Inventory.objects.all().values("product", "quantity")
-        response = {item["product"]: item["quantity"] for item in items if item["product"] != "sales"}
-        return JsonResponse(
-            response,
-            status=status.HTTP_200_OK
-        )
+        else:
+            items = Inventory.objects.all()
+            return Response(
+                {item.product: item.quantity for item in items if item.product != "sales"},
+                status=status.HTTP_200_OK
+            )
 
     def post(self, request):
         params = request.data
-        if (not params.get("name")) or (len(params.get("name")) > 8): # not a valid name
-            return JsonResponse({"message": "ERROR"}, status=status.HTTP_400_BAD_REQUEST)
-        if (params.get("amount") != None) and (not isinstance(params.get("amount"), int) or params.get("amount") < 0): # not a valid amount
-            return JsonResponse({"message": "ERROR"}, status=status.HTTP_400_BAD_REQUEST)
-        if Inventory.objects.filter(product=params.get("name")).exists():
-            item = Inventory.objects.get(product=params.get("name"))
-            item.quantity += params.get("amount") or 1
+        # check input params are valid
+        name = params.get("name")
+        amount = params.get("amount")
+        if name == None or len(name) > 8: # not a valid name
+            return Response({"message": "ERROR"}, status=status.HTTP_400_BAD_REQUEST)
+        if amount != None and (not isinstance(amount, int) or amount <= 0): # not a valid amount
+            return Response({"message": "ERROR"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if Inventory.objects.filter(product=name).exists(): # add amount to an existing name
+            item = Inventory.objects.get(product=name)
+            item.quantity += amount or 1
             item.save()
-        else:
+        else: # register new name & amount 
             Inventory.objects.create(
-                product = params.get("name"),
-                quantity = params.get("amount") or 1
+                product = name,
+                quantity = amount or 1
             )                
-        location = f"http://35.78.106.61:80/v1/stocks/{params.get('name')}"
-        response = JsonResponse(params, status=status.HTTP_200_OK)
-        response['Location'] = location
+        response = Response(params, status=status.HTTP_200_OK)
+        response['Location'] = f"http://35.78.106.61:80/v1/stocks/{name}"
         return response
     
     def delete(self, request):
@@ -49,39 +60,44 @@ class StockView(APIView):
 class SaleView(APIView):
     def get(self, request):
         exist = Inventory.objects.filter(product="sales").exists()
-        if exist:
-            profit = float(Inventory.objects.get(product="sales").quantity)/10000
-            return JsonResponse(
+        if exist: # sales exists
+            profit = ceil(Inventory.objects.get(product="sales").quantity*1.0/100)*1.0/100
+            return Response(
                 {"sales": round(profit, 2)},
                 status=status.HTTP_200_OK
             )
-        else:
+        else: # sales does not exist, set to 0.0
             Inventory.objects.create(product="sales", quantity=0)
-            return JsonResponse(
+            return Response(
                 {"sales": 0.0},
                 status = status.HTTP_200_OK
             )
     
     def post(self, request):
         params = request.data
-        if (params.get("amount") != None) and (not isinstance(params.get("amount"), int) or params.get("amount") < 0): # not a valid amount
-            return JsonResponse({"message": "ERROR"}, status=status.HTTP_400_BAD_REQUEST)
-        if (params.get("price") != None): # not a valid price
-            if not (isinstance(params.get("price"), int) or isinstance(params.get("price"), float)) or params.get("price") < 0:
-                return JsonResponse({"message": "ERROR"}, status=status.HTTP_400_BAD_REQUEST)
-        item = Inventory.objects.filter(product=params.get("name")).first()
-        if item == None or item.quantity < (params.get("amount") or 1):
-            return JsonResponse({"message": "ERROR"}, status=status.HTTP_400_BAD_REQUEST)
+        # check input params are valid
+        name = params.get("name")
+        amount = params.get("amount")
+        price = params.get("price")
+        if name == None or len(name) > 8: # not a valid name
+            return Response({"message": "ERROR"}, status=status.HTTP_400_BAD_REQUEST)
+        if amount != None and (not isinstance(amount, int) or amount < 0): # not a valid amount
+            return Response({"message": "ERROR"}, status=status.HTTP_400_BAD_REQUEST)
+        if price != None: # not a valid price
+            if not (isinstance(price, float) or isinstance(price, int)) or price <= 0:
+                return Response({"message": "ERROR"}, status=status.HTTP_400_BAD_REQUEST)
+            
+        item = Inventory.objects.filter(product=name).first()
+        if item == None or item.quantity < (amount or 1): # no product or insufficient product
+            return Response({"message": "ERROR"}, status=status.HTTP_400_BAD_REQUEST)
         else:
-            item.quantity -= (params.get("amount") or 1)
-            exist = Inventory.objects.filter(product="sales").exists()
-            if not exist: 
+            item.quantity -= (amount or 1)
+            if not Inventory.objects.filter(product="sales").exists(): # create sales if not exist
                 Inventory.objects.create(product="sales", quantity=0)
             profit = Inventory.objects.get(product="sales")
-            profit.quantity += int((params.get("amount") or 1) * (params.get("price") or 0) * 10000)
+            profit.quantity += int((amount or 1) * (price or 0) * 10000)
             item.save()
             profit.save()
-            location = f"http://35.78.106.61:80/v1/sales/{params.get('name')}"
-            response = JsonResponse(params, status = status.HTTP_200_OK)
-            response['Location'] = location
+            response = Response(params, status = status.HTTP_200_OK)
+            response['Location'] = f"http://35.78.106.61:80/v1/sales/{params.get('name')}"
             return response
